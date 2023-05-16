@@ -1,0 +1,52 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+        AWS_REGION = 'YOUR_REGION'
+        SSH_PRIVATE_KEY = credentials('SSH_PRIVATE_KEY')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git credentialsId: 'GITHUB_CREDENTIALS', url: 'https://github.com/your-username/your-repo.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // Perform build steps here
+                // For example, compiling code, running tests, etc.
+            }
+        }
+
+        stage('Deploy to Production') {
+            steps {
+                // Deploy the code to EC2 instance
+                withCredentials([
+                    sshUserPrivateKey(credentialsId: 'SSH_PRIVATE_KEY', keyFileVariable: 'SSH_PRIVATE_KEY')
+                ]) {
+                    sh '''
+                        # Install AWS CLI (if not already installed)
+                        pip install awscli --upgrade --user
+
+                        # Configure AWS credentials
+                        aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+                        aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+                        aws configure set default.region $AWS_REGION
+
+                        # Upload code to EC2 instance using SCP
+                        scp -i $SSH_PRIVATE_KEY -r /path/to/your/code/ ec2-user@YOUR_EC2_INSTANCE_IP:/path/to/remote/directory/
+
+                        # SSH into the EC2 instance and perform additional deployment steps (if required)
+                        ssh -i $SSH_PRIVATE_KEY ec2-user@YOUR_EC2_INSTANCE_IP 'bash -s' << 'EOF'
+                            # Additional deployment steps (e.g., stopping/starting services, updating configurations)
+                        EOF
+                    '''
+                }
+            }
+        }
+    }
+}
